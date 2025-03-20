@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .grid {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .grid button {
+            width: 80px;
+            height: 80px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            background-color: #e9ecef;
+            cursor: pointer;
+            transition: all 0.3s ease-in-out;
+            border: none;
+        }
+
+        .grid button:hover {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .grid button.selected {
+            background-color: green;
+            color: white;
+        }
+
+        .card {
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        /* Scrollable Table */
+        .scrollable-table {
+            max-height: 300px;
+            overflow-y: auto;
+            display: block;
+        }
+
+        .table th, .table td {
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-4">
+    <nav class="navbar shadow py-3" style="background-color: #8B0000; border-radius:10px">
+      <div class="container d-flex flex-column text-center">
+          <h2 class="fw-bold mb-1 text-white">AMEN Live Stock Inventory</h2>
+          <h6 class="text-warning mb-0">by Nazim Sanusi</h6>
+      </div>
+    </nav>
+
+        <!-- Selection Grid -->
+    <div class="grid" id="weightGrid"></div>
+    <div class="row mt-4 d-flex align-items-stretch">
+
+    <!-- Right Card: Selected Items -->
+    <div class="col-md-6">
+        <div class="card shadow h-100">
+            <div class="card-body">
+                <h4>Form Order</h4>
+                <form id="dataForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"  >Customer Name</label>
+                        <input type="text" id="nameInput" class="form-control" placeholder="" required>
+                    </div>
+                    <div id="selectedItems"></div>
+                    <button type="button" class="btn btn-primary w-100 mt-3" onclick="submitForm()">Update Kuantiti</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Left Card: Stock Available -->
+    <div class="col-md-6">
+        
+        <div class="card shadow">
+    <div class="card-body">
+        <h4>Stock Available</h4>
+
+        <!-- Min-Max Filtering Controls -->
+        <div class="row mb-3">
+            <div class="col-md-5">
+                <label class="form-label fw-bold">Min Berat</label>:
+                <input type="number" id="minBerat" class="form-control" placeholder="Enter min value">
+            </div>
+            <div class="col-md-5">
+                <label class="form-label fw-bold">Max Berat</label>
+                <input type="number" id="maxBerat" class="form-control" placeholder="Enter max value">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-primary w-100" onclick="applyStockFilter()">Filter</button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover text-center">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Berat</th>
+                        <th>Kuantiti</th>
+                        <th>Berat</th>
+                        <th>Kuantiti</th>
+                        <th>Berat</th>
+                        <th>Kuantiti</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+  </div>
+
+    </div>
+
+    
+
+
+</div>
+
+        <!-- Orders Table -->
+        <div class="mt-5">
+            <h4>All Orders</h4>
+            <label for="orderStatusFilter" class="form-label">Filter by Status:</label>
+            <select id="orderStatusFilter" class="form-select mb-3" onchange="fetchFilteredOrders()">
+                <option value="">All</option>
+                <option value="Confirm">Confirm</option>
+                <option value="Reserve">Reserve</option>
+            </select>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Name</th>
+                            <th>Berat</th>
+                            <th>Kuantiti</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allOrdersTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        let selectedNumbers = {};
+
+        function fetchData() {
+            google.script.run
+                .withSuccessHandler(displayData)
+                .withFailureHandler(error => alert("Failed to load Berat data."))
+                .getFilteredBerat();
+
+            google.script.run
+                .withSuccessHandler(displayTableData)
+                .withFailureHandler(error => alert("Failed to load stored data."))
+                .getAllRecords();
+
+            google.script.run
+                .withSuccessHandler(displayAllOrders)
+                .withFailureHandler(error => alert("Failed to load orders."))
+                .getAllOrders();
+
+            fetchFilteredOrders();
+        }
+
+        function displayData(data) {
+            const grid = document.getElementById("weightGrid");
+            grid.innerHTML = "";
+
+            if (data.length === 0) {
+                grid.innerHTML = "<p>No available Berat values.</p>";
+                return;
+            }
+
+            data.forEach(weight => {
+                const button = document.createElement("button");
+                button.textContent = weight;
+                button.classList.add("btn", "btn-outline-secondary");
+                button.onclick = () => handleSelect(weight, button);
+                grid.appendChild(button);
+            });
+        }
+
+         function handleSelect(weight, button) {
+            if (selectedNumbers.hasOwnProperty(weight)) {
+                // If already selected, unselect it
+                delete selectedNumbers[weight];  
+                button.classList.remove("selected"); 
+            } else {
+                // If not selected, add it
+                selectedNumbers[weight] = "";  
+                button.classList.add("selected"); 
+            }
+            updateForm(); // Refresh form dynamically
+            }
+
+          function updateForm() {
+            const selectedDiv = document.getElementById("selectedItems");
+            selectedDiv.innerHTML = "";
+
+            if (Object.keys(selectedNumbers).length === 0) {
+                selectedDiv.innerHTML = "<p class='text-muted'>No items selected.</p>";
+                return;
+            }
+
+            // Generate input fields dynamically for selected weights
+            Object.keys(selectedNumbers).forEach(weight => {
+                const div = document.createElement("div");
+                div.classList.add("mb-3"); // Add spacing
+                div.innerHTML = `
+                    <label class="form-label fw-bold">Weight (${weight}):</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" min="1" value="${selectedNumbers[weight] || ''}" 
+                            onchange="updateQuantity('${weight}', this.value)">
+                    </div>
+                `;
+                selectedDiv.appendChild(div);
+            });
+
+            // Add status selection dropdown
+            const statusDiv = document.createElement("div");
+            statusDiv.classList.add("mb-3");
+            statusDiv.innerHTML = `
+                <label class="form-label fw-bold">Status:</label>
+                <select id="statusSelect" class="form-select" onchange="toggleDateInput()">
+                    <option value="Confirm">Confirm</option>
+                    <option value="Reserve">Reserve</option>
+                </select>
+            `;
+            selectedDiv.appendChild(statusDiv);
+
+            // Add date picker (hidden initially)
+            const dateDiv = document.createElement("div");
+            dateDiv.id = "dateContainer";
+            dateDiv.classList.add("mb-3", "d-none"); // Hidden by default
+            dateDiv.innerHTML = `
+                <label class="form-label fw-bold">Date Collect:</label>
+                <input type="date" id="dateCollectInput" class="form-control">
+            `;
+            selectedDiv.appendChild(dateDiv);
+        }
+
+
+    function updateQuantity(weight, quantity) {
+    if (quantity === "" || quantity <= 0) {
+        delete selectedNumbers[weight]; // Remove if empty or invalid
+        document.querySelector(`button[data-weight="${weight}"]`).classList.remove("selected");
+    } else {
+        selectedNumbers[weight] = quantity; // Store valid quantity
+    }
+    updateForm(); // Refresh form dynamically
+    }
+
+     // Function to toggle date field visibility
+    function toggleDateInput() {
+        let status = document.getElementById("statusSelect").value;
+        document.getElementById("dateContainer").classList.toggle("d-none", status !== "Reserve");
+    }
+
+    function submitForm() {
+    const name = document.getElementById("nameInput").value.trim();
+    const status = document.getElementById("statusSelect").value;
+    const dateCollect = document.getElementById("dateCollectInput").value;
+
+    if (!name || Object.keys(selectedNumbers).length === 0 || (status === "Reserve" && !dateCollect)) {
+        alert("Please fill in all required fields.");
+        return;
+    }
+
+    google.script.run
+        .withSuccessHandler(() => { alert("Updated successfully!"); clearForm(); fetchData(); })
+        .withFailureHandler(error => alert("Failed: " + error))
+        .saveToListOrder(name, selectedNumbers, status, dateCollect);
+  }
+
+  function clearForm() {
+    document.getElementById("nameInput").value = "";  // Clear name input
+    document.getElementById("statusSelect").value = "Confirm"; // Reset status to Confirm
+    document.getElementById("dateCollectInput").value = ""; // Clear date input
+    document.getElementById("dateContainer").style.display = "none"; // Hide date collect input
+    document.getElementById("selectedItems").innerHTML = ""; // Clear selected Berat
+    selectedNumbers = {}; // Reset selected numbers object
+    }
+
+
+    let stockData = []; // Stores original data
+
+    function displayTableData(data) {
+        const tableBody = document.getElementById("dataTableBody");
+        tableBody.innerHTML = "";
+
+        if (data.length === 0) {
+            tableBody.innerHTML = "<tr><td colspan='6'>No data available</td></tr>";
+            return;
+        }
+
+        let rowHTML = "";
+        for (let i = 0; i < data.length; i += 3) {
+            rowHTML += "<tr>";
+            for (let j = 0; j < 3; j++) {
+                if (i + j < data.length) {
+                    rowHTML += `<td>${data[i + j][0]}</td><td>${data[i + j][1]}</td>`;
+                } else {
+                    rowHTML += "<td></td><td></td>"; // Fill empty cells
+                }
+            }
+            rowHTML += "</tr>";
+        }
+
+        tableBody.innerHTML = rowHTML;
+    }
+
+    function applyStockFilter() {
+        let minBerat = parseFloat(document.getElementById("minBerat").value) || -Infinity;
+        let maxBerat = parseFloat(document.getElementById("maxBerat").value) || Infinity;
+
+        // Filter stock data based on min/max range
+        let filteredData = stockData.filter(row => row[0] >= minBerat && row[0] <= maxBerat);
+
+        // Display filtered data
+        displayTableData(filteredData);
+    }
+
+    function fetchStockData() {
+        google.script.run.withSuccessHandler(data => {
+            stockData = data; // Store original data
+            displayTableData(stockData); // Show full data initially
+        }).getAllRecords();
+    }
+
+    document.addEventListener("DOMContentLoaded", fetchStockData);
+
+        function fetchFilteredOrders() {
+            let selectedStatus = document.getElementById("orderStatusFilter").value;
+            
+            google.script.run
+                .withSuccessHandler(displayAllOrders)
+                .withFailureHandler(error => alert("Failed to load orders."))
+                .getAllOrders(selectedStatus);
+        }
+
+        function displayAllOrders(data) {
+            const tableBody = document.getElementById("allOrdersTableBody");
+            tableBody.innerHTML = "";
+
+            if (!Array.isArray(data) || data.length === 0) {
+                tableBody.innerHTML = "<tr><td colspan='6'>No orders available</td></tr>";
+                return;
+            }
+
+            data.forEach((row, index) => {
+                const tr = document.createElement("tr");
+
+                // Format date correctly
+                let date;
+                if (typeof row[3] === 'string' && row[3].includes("T")) { 
+                    date = new Date(row[3]); // ISO format
+                } else if (typeof row[3] === 'number') {
+                    date = new Date(row[3]); // Timestamp format
+                } else {
+                    date = new Date(); // Default fallback
+                }
+
+                // Action buttons for "Reserve" status
+                let actionHtml = "";
+                if (row[4] === "Reserve") {
+                    actionHtml = `
+                        <button class="btn btn-success btn-sm" onclick="updateOrderStatus(${index}, 'Confirm')">Confirm</button>
+                        <button class="btn btn-danger btn-sm" onclick="updateOrderStatus(${index}, 'Cancel')">Cancel</button>
+                    `;
+                } else {
+                    actionHtml = `<span class="badge bg-primary">Confirmed</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td>${row[0]}</td>
+                    <td>${row[1]}</td>
+                    <td>${row[2]}</td>
+                    <td>${date.toLocaleString()}</td>
+                    <td>${row[4]}</td>
+                    <td>${actionHtml}</td>
+                `;
+
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function updateOrderStatus(rowIndex, newStatus) {
+            google.script.run
+                .withSuccessHandler(response => {
+                    alert(response);
+                    fetchFilteredOrders();
+                })
+                .withFailureHandler(error => alert("Failed to update order status."))
+                .updateOrderStatus(rowIndex, newStatus);
+        }
+
+        document.addEventListener("DOMContentLoaded", fetchData);
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
